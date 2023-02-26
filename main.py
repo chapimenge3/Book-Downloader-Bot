@@ -43,8 +43,8 @@ Year: {year}
 
 
 def create_user(user_info):
-    user_id = user_info.get('id')
-    existing_user = db.get(user_id)
+    user_info['id'] = str(user_info.get('id'))
+    existing_user = db.get(user_info['id'])
     if existing_user:
         return
     user_info['key'] = user_info.pop('id')
