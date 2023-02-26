@@ -13,6 +13,8 @@ load_dotenv()
 TOKEN = os.getenv('TOKEN')
 DETA_KEY = os.getenv('DETA_KEY')
 
+ADMIN_ID = [1697562512]
+
 deta = Deta(DETA_KEY)
 db = deta.Base('amazingbookdownloaderbot')
 if not db.get('total_downloads'):
@@ -20,7 +22,6 @@ if not db.get('total_downloads'):
         'key': 'total_downloads',
         'value': 0
     })
-
 
 LIBGEN_URL = 'https://libgen.is/search.php'
 client = httpx.Client(base_url=LIBGEN_URL)
@@ -87,9 +88,9 @@ def download_book(url, file_name, timeout=20, query=None):
     query.edit_message_text('Downloading completed!')
 
     total_mb = total / 1024 / 1024
-    db.update('total_downloads', {
+    db.update({
         'value': db.get('total_downloads')['value'] + total_mb
-    })
+    }, 'total_downloads')
 
 
 def get_books(html):
@@ -219,11 +220,27 @@ def send_file(update, context):
     return 1
 
 
+def get_stat(update, context):
+    if update.message.from_user.id not in ADMIN_ID:
+        return 1
+    total_downloads = db.get('total_downloads')['value']
+    res = db.fetch()
+    all_items = res.items
+    while res.last:
+        res = db.fetch(last=res.last)
+        all_items += res.items
+    
+    text = 'Total downloads: {:.2f} MB\n\n'.format(total_downloads)
+    text += 'Total users: {}\n\n'.format(len(all_items)-1)
+    
+    update.message.reply_text(text)
+
 def main():
     updater = Updater(token=TOKEN, use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(CommandHandler('stat', get_stat))
     dispatcher.add_handler(MessageHandler(Filters.text, search_book_handler))
     dispatcher.add_handler(CallbackQueryHandler(send_file))
 
