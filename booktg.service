@@ -1,0 +1,15 @@
+# Linux service configuration for bookdownloader bot
+[Unit]
+Description=Bookdownloader bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/bots/Book-Downloader-Bot
+Restart=always
+RestartSec=1
+User=ubuntu
+ExecStart=/home/ubuntu/bots/Book-Downloader-Bot/env/bin/python3 main.py
+
+[Install]
+WantedBy=multi-user.target
