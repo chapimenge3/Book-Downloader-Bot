@@ -162,7 +162,7 @@ def search_book(name):
 
 def start(update, context):
     # every even day of the month send the user stat of total downloads
-    today = datetime.datetime.today()
+    today = datetime.today()
     if today.day % 2 == 0:
         total_downloads = db.get('total_downloads')['value']
         update.message.reply_text(
