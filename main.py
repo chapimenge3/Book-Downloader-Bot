@@ -248,13 +248,13 @@ def get_stat(update, context):
 
 
 def main():
-    updater = Updater(token=TOKEN, use_context=True)
+    updater = Updater(token=TOKEN, use_context=True, workers=32)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler('start', start))
     dispatcher.add_handler(CommandHandler('stat', get_stat))
-    dispatcher.add_handler(MessageHandler(Filters.text, search_book_handler))
-    dispatcher.add_handler(CallbackQueryHandler(send_file))
+    dispatcher.add_handler(MessageHandler(Filters.text, search_book_handler, run_async=True))
+    dispatcher.add_handler(CallbackQueryHandler(send_file, run_async=True))
 
     updater.start_polling()
     updater.idle()
