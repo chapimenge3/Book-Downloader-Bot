@@ -286,6 +286,8 @@ def error_handler(update, context):
     # Finally, send the message
     context.bot.send_message(
         chat_id=1697562512, text=message, parse_mode="HTML")
+    update.message.reply_text(
+        'Sorry, something went wrong. Please try again later.')
 
 
 def main():
@@ -297,7 +299,7 @@ def main():
     dispatcher.add_handler(MessageHandler(
         Filters.text, search_book_handler, run_async=True))
     dispatcher.add_handler(CallbackQueryHandler(send_file, run_async=True))
-    
+
     dispatcher.add_error_handler(error_handler, run_async=True)
 
     updater.start_polling()
