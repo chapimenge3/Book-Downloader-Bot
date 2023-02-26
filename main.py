@@ -1,5 +1,6 @@
 import os
-import json
+import math
+from datetime import datetime
 from uuid import uuid4 as uuid
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction
@@ -29,9 +30,11 @@ client = httpx.Client(base_url=LIBGEN_URL)
 
 WELCOME_MESSAGE = '''Welcome to Book Downloader Bot. 
 
-Any time send me the book name you want to download.
+Any time send me the book name you want to download. 50MB is the maximum size of the book you can download.
 
 created by @chapimenge
+
+Join https://t.me/codewizme for more bots and projects.
 
 '''
 
@@ -87,7 +90,7 @@ def download_book(url, file_name, timeout=20, query=None):
 
     query.edit_message_text('Downloading completed!')
 
-    total_mb = total / 1024 / 1024
+    total_mb = math.ceil(total / 1024 / 1024)
     db.update({
         'value': db.get('total_downloads')['value'] + total_mb
     }, 'total_downloads')
@@ -158,7 +161,15 @@ def search_book(name):
 
 
 def start(update, context):
-    update.message.reply_text(WELCOME_MESSAGE)
+    # every even day of the month send the user stat of total downloads
+    today = datetime.datetime.today()
+    if today.day % 2 == 0:
+        total_downloads = db.get('total_downloads')['value']
+        update.message.reply_text(
+            f'{WELCOME_MESSAGE} \n\nTotal downloads from all till now: {total_downloads} MB')
+    else:
+        update.message.reply_text(WELCOME_MESSAGE)
+
     user_info = update.message.from_user.to_dict()
     create_user(user_info)
 
@@ -229,11 +240,12 @@ def get_stat(update, context):
     while res.last:
         res = db.fetch(last=res.last)
         all_items += res.items
-    
+
     text = 'Total downloads: {:.2f} MB\n\n'.format(total_downloads)
     text += 'Total users: {}\n\n'.format(len(all_items)-1)
-    
+
     update.message.reply_text(text)
+
 
 def main():
     updater = Updater(token=TOKEN, use_context=True)
