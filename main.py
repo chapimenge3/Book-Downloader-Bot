@@ -3,11 +3,16 @@ import math
 from datetime import datetime
 from uuid import uuid4 as uuid
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction, Update
 from dotenv import load_dotenv
 import httpx
 from bs4 import BeautifulSoup
 from deta import Deta
+import json
+import traceback
+import html
+from telegram.utils.helpers import mention_html
+
 
 load_dotenv()
 
@@ -84,11 +89,17 @@ def download_book(url, file_name, timeout=20, query=None):
                 percent = (response.num_bytes_downloaded / total) * 100
                 tmp = (percent//10) * 5
                 if percent and tmp != prev:
-                    query.edit_message_text(
-                        f'Downloading... {tmp:.2f}%')
+                    try:
+                        query.edit_message_text(
+                            f'Downloading... {tmp:.2f}%')
+                    except Exception as e:
+                        print(e)
                 prev = tmp
 
-    query.edit_message_text('Downloading completed!')
+    try:
+        query.edit_message_text('Downloading completed!')
+    except Exception as e:
+        print(e)
 
     total_mb = math.ceil(total / 1024 / 1024)
     db.update({
@@ -215,7 +226,11 @@ def send_file(update, context):
     file_type = url.split('.')[-1]
     unique_file_name = f'{unique_file_name}-{unique}.{file_type}'
     download_book(url, unique_file_name, query=query)
-    query.edit_message_text(text='sending the file...')
+    try:
+        query.edit_message_text(text='sending the file...')
+    except:
+        update.message.reply_text('sending the file...')
+
     context.bot.send_chat_action(
         chat_id=query.message.chat_id, action=ChatAction.UPLOAD_DOCUMENT)
 
@@ -247,14 +262,43 @@ def get_stat(update, context):
     update.message.reply_text(text)
 
 
+def error_handler(update, context):
+    print("Exception while handling an update:")
+
+    # traceback.format_exception returns the usual python message about an exception, but as a
+    # list of strings rather than a single string, so we have to join them together.
+    tb_list = traceback.format_exception(
+        None, context.error, context.error.__traceback__)
+    tb_string = ''.join(tb_list)
+
+    # Build the message with some markup and additional information about what happened.
+    # You might need to add some logic to deal with messages longer than the 4096 character limit.
+    update_str = update.to_dict() if isinstance(update, Update) else str(update)
+    message = (
+        f'An exception was raised while handling an update\n'
+        f'<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}'
+        '</pre>\n\n'
+        f'<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n'
+        f'<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n'
+        f'<pre>{html.escape(tb_string)}</pre>'
+    )
+
+    # Finally, send the message
+    context.bot.send_message(
+        chat_id=1697562512, text=message, parse_mode="HTML")
+
+
 def main():
     updater = Updater(token=TOKEN, use_context=True, workers=32)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler('start', start))
     dispatcher.add_handler(CommandHandler('stat', get_stat))
-    dispatcher.add_handler(MessageHandler(Filters.text, search_book_handler, run_async=True))
+    dispatcher.add_handler(MessageHandler(
+        Filters.text, search_book_handler, run_async=True))
     dispatcher.add_handler(CallbackQueryHandler(send_file, run_async=True))
+    
+    dispatcher.add_error_handler(error_handler, run_async=True)
 
     updater.start_polling()
     updater.idle()
