@@ -45,7 +45,7 @@ def get_file_url(mirror):
 
 
 def download_book(url, file_name, timeout=20, query=None):
-    query.edit_message_text('Downloading...')
+    query.edit_message_text(f'Downloading {file_name[:10]}...')
     with open(file_name, 'wb') as f:
         with httpx.stream("GET", url, timeout=timeout) as response:
             total = int(response.headers["Content-Length"])
