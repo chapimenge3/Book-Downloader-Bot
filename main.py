@@ -1,17 +1,31 @@
 import os
+import json
 from uuid import uuid4 as uuid
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction
 from dotenv import load_dotenv
 import httpx
 from bs4 import BeautifulSoup
+from deta import Deta
 
 load_dotenv()
+
+TOKEN = os.getenv('TOKEN')
+DETA_KEY = os.getenv('DETA_KEY')
+
+deta = Deta(DETA_KEY)
+db = deta.Base('amazingbookdownloaderbot')
+if not db.get('total_downloads'):
+    db.put({
+        'key': 'total_downloads',
+        'value': 0
+    })
+
 
 LIBGEN_URL = 'https://libgen.is/search.php'
 client = httpx.Client(base_url=LIBGEN_URL)
 
-TOKEN = os.getenv('TOKEN')
+
 WELCOME_MESSAGE = '''Welcome to Book Downloader Bot. 
 
 Any time send me the book name you want to download.
@@ -26,6 +40,16 @@ Size: {size}
 Type: {file}
 Year: {year}
 '''
+
+
+def create_user(user_info):
+    user_id = user_info.get('id')
+    existing_user = db.get(user_id)
+    if existing_user:
+        return
+    user_info['key'] = user_info.pop('id')
+    db.put(user_info)
+    return
 
 
 def send_request(url, url_params=None):
@@ -46,10 +70,10 @@ def get_file_url(mirror):
 
 def download_book(url, file_name, timeout=20, query=None):
     query.edit_message_text(f'Downloading {file_name}...')
+    total = 0
     with open(file_name, 'wb') as f:
         with httpx.stream("GET", url, timeout=timeout) as response:
             total = int(response.headers["Content-Length"])
-            num_bytes_downloaded = response.num_bytes_downloaded
             prev = 0
             for chunk in response.iter_bytes():
                 f.write(chunk)
@@ -61,6 +85,11 @@ def download_book(url, file_name, timeout=20, query=None):
                 prev = tmp
 
     query.edit_message_text('Downloading completed!')
+
+    total_mb = total / 1024 / 1024
+    db.update('total_downloads', {
+        'value': db.get('total_downloads')['value'] + total_mb
+    })
 
 
 def get_books(html):
@@ -129,6 +158,8 @@ def search_book(name):
 
 def start(update, context):
     update.message.reply_text(WELCOME_MESSAGE)
+    user_info = update.message.from_user.to_dict()
+    create_user(user_info)
 
 
 def search_book_handler(update, context):
@@ -175,7 +206,7 @@ def send_file(update, context):
     query.edit_message_text(text='sending the file...')
     context.bot.send_chat_action(
         chat_id=query.message.chat_id, action=ChatAction.UPLOAD_DOCUMENT)
-    
+
     context.bot.send_document(
         chat_id=query.message.chat_id,
         document=open(unique_file_name, 'rb'),
