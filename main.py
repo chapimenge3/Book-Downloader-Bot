@@ -30,6 +30,13 @@ if not db.get('total_downloads'):
     })
 
 LIBGEN_URL = 'https://libgen.is/search.php'
+# other mirros
+LIBGEN_MIRRORS = [
+    'http://gen.lib.rus.ec/search.php',
+    'http://gen.lib.rus.ec/search.php',
+    'http://libgen.rs/search.php'
+]
+
 client = httpx.Client(base_url=LIBGEN_URL)
 
 
@@ -63,12 +70,23 @@ def create_user(user_info):
 
 def send_request(url, url_params=None):
     res = client.get(url, params=url_params)
+    if res.status_code == 200:
+        return res.text
+    try:
+        for mirror in LIBGEN_MIRRORS:
+            res = client.get(mirror, params=url_params)
+            if res.status_code == 200:
+                return res.text
+    except:
+        pass
 
-    return res.text
+    return None
 
 
 def get_file_url(mirror):
     page = send_request(mirror)
+    if not page:
+        return None
     soup = BeautifulSoup(page, features='html.parser')
     a = soup.find('a')
     h1 = soup.find('h1')
@@ -167,6 +185,8 @@ def search_book(name):
     }
 
     response = send_request(LIBGEN_URL, url_params)
+    if not response:
+        return []
     books = get_books(response)
     return books
 
@@ -192,7 +212,7 @@ def search_book_handler(update, context):
     text = update.message.text
     books = search_book(text)
     if not books:
-        update.message.reply_text('No books found!')
+        update.message.reply_text('No books found or Error occurred')
         return 1
     response_text = 'Books that are greater than 50 MB wont be listed here.\n\nHere are the top 10 books I found for you\n\n'
     keyboards = []
