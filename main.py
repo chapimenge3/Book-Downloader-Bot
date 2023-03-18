@@ -1,5 +1,6 @@
 import os
 import math
+import base64
 from datetime import datetime
 from uuid import uuid4 as uuid
 from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
@@ -16,8 +17,8 @@ from telegram.utils.helpers import mention_html
 
 load_dotenv()
 
-TOKEN = os.getenv('TOKEN')
-DETA_KEY = os.getenv('DETA_KEY')
+TOKEN = os.getenv('TOKEN', '1789117801:AAE7kPyd23Xbq3kPSvFH5OHMzAkHY96xJsc')
+DETA_KEY = os.getenv('DETA_KEY', 'd0fx3kttcjd_7CrquXya2gHRf448TjjnU1BcAQxnJs83')
 
 ADMIN_ID = [1697562512]
 
@@ -98,6 +99,7 @@ def get_file_url(mirror):
 def download_book(url, file_name, timeout=20, query=None):
     query.edit_message_text(f'Downloading {file_name}...')
     total = 0
+    # make sure the file extension is set
     with open(file_name, 'wb') as f:
         with httpx.stream("GET", url, timeout=timeout) as response:
             total = int(response.headers["Content-Length"])
@@ -117,7 +119,7 @@ def download_book(url, file_name, timeout=20, query=None):
     try:
         query.edit_message_text('Downloading completed!')
     except Exception as e:
-        print(e)
+        print('Error Downlading', e)
 
     total_mb = math.ceil(total / 1024 / 1024)
     db.update({
@@ -222,8 +224,9 @@ def search_book_handler(update, context):
         response_text += BOOK_TEXT_TEMPLATE.format(**book)
         response_text += '\n'
 
+        button_data = f'link_{book["link"].split("/")[-1]}&file={book["file"]}'
         row.append(InlineKeyboardButton(
-            str(i+1), callback_data=f'link_{book["link"]}'))
+            str(i+1), callback_data=button_data))
         if len(row) == 2:
             keyboards.append(row)
             row = []
@@ -237,15 +240,18 @@ def search_book_handler(update, context):
 
 def send_file(update, context):
     query = update.callback_query
-    link = query.data.split('_')[1]
+    data = query.data.split('&')
+    link = f'http://library.lol/main/{data[0].split("_")[1]}'
     query.answer()
     query.edit_message_text(text='getting the file...')
     url, file_name = get_file_url(link)
     unique = str(uuid())[:8]
     unique_file_name = '-'.join(file_name.lower().split())
-    file_type = url.split('.')[-1]
-    unique_file_name = f'{unique_file_name}-{unique}.{file_type}'
+    file_type = data[1].split('=')[1]
+    unique_file_name = f'books/{unique_file_name}-{unique}.{file_type}'
     download_book(url, unique_file_name, query=query)
+    if file_name.split('.')[-1] != file_type:
+        file_name = f'{file_name}.{file_type}'
     try:
         query.edit_message_text(text='sending the file...')
     except:
