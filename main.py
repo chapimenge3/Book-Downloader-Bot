@@ -378,6 +378,21 @@ def cancel(update, context):
     return ConversationHandler.END
 
 
+def clean_files(context):
+    print('Cleaning files')
+    now = datetime.now()
+    # list all files in the books folder
+    for file in os.listdir('books'):
+        last_modified = os.path.getmtime(os.path.join('books', file))
+        last_modified = datetime.fromtimestamp(last_modified)
+        total_seconds = (now - last_modified).total_seconds()
+        # if the file is older than an hour, delete it
+        if total_seconds > 3600:
+            os.remove(os.path.join('books', file))
+
+    return
+
+
 broadcast_conv = ConversationHandler(
     entry_points=[CommandHandler('broadcast', broadcast_message)],
     states={
@@ -390,6 +405,10 @@ broadcast_conv = ConversationHandler(
 def main():
     updater = Updater(token=TOKEN, use_context=True, workers=32)
     dispatcher = updater.dispatcher
+    job = updater.job_queue
+    
+    # run the clean_files function every hour
+    job.run_repeating(clean_files, interval=3600, first=10)
 
     dispatcher.add_handler(CommandHandler('start', start))
     dispatcher.add_handler(CommandHandler('stat', get_stat))
