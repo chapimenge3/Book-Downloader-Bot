@@ -370,7 +370,6 @@ def broadcast_job(context):
         text=f'Broadcast Job finished. Sent to {sent} users from {len(all_items)-1} users',
     )
 
-    context.job.schedule_removal()
 
 
 def cancel(update, context):
