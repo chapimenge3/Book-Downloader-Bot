@@ -3,7 +3,7 @@ import math
 import base64
 from datetime import datetime
 from uuid import uuid4 as uuid
-from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters, ConversationHandler
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ChatAction, Update
 from dotenv import load_dotenv
 import httpx
@@ -18,7 +18,8 @@ from telegram.utils.helpers import mention_html
 load_dotenv()
 
 TOKEN = os.getenv('TOKEN', '1789117801:AAE7kPyd23Xbq3kPSvFH5OHMzAkHY96xJsc')
-DETA_KEY = os.getenv('DETA_KEY', 'd0fx3kttcjd_7CrquXya2gHRf448TjjnU1BcAQxnJs83')
+DETA_KEY = os.getenv(
+    'DETA_KEY', 'd0fx3kttcjd_7CrquXya2gHRf448TjjnU1BcAQxnJs83')
 
 ADMIN_ID = [1697562512]
 
@@ -316,16 +317,86 @@ def error_handler(update, context):
         'Sorry, something went wrong. Please try again later.')
 
 
+def broadcast_message(update: Update, context):
+    if update.effective_user.id not in ADMIN_ID:
+        update.message.reply_text('Unrecognized command')
+        return ConversationHandler.END
+    update.message.reply_text('Enter the message to broadcast')
+    return 1
+
+
+def send_broadcast_message(update, context):
+    data = {
+        'from_chat_id': update.message.chat_id,
+        'message_id': update.message.message_id,
+    }
+    context.job_queue.run_once(broadcast_job, 0, context=data)
+    update.message.reply_text('Broadcasting message...')
+    return ConversationHandler.END
+
+
+def broadcast_job(context):
+    print('Broadcast Job started')
+    res = db.fetch()
+    all_items = res.items
+    while res.last:
+        res = db.fetch(last=res.last)
+        all_items += res.items
+    # copy message to the user
+    import time
+    print('total users: ', len(all_items)-1)
+    sent = 0
+    for user in all_items:
+        if user['key'] == 'total_downloads':
+            continue
+        try:
+
+            print(user)
+            if sent > 0:
+                break
+            context.bot.copy_message(
+                chat_id=int(user['key']),
+                **context.job.context,
+            )
+            sent += 1
+        except Exception as e:
+            print('Error sending message to ', user)
+            print('Error is ', e)
+        time.sleep(0.3)
+    print('Broadcast Job finished')
+    # send message to the admin
+    context.bot.send_message(
+        chat_id=1697562512,
+        text=f'Broadcast Job finished. Sent to {sent} users from {len(all_items)-1} users',
+    )
+
+    context.job.schedule_removal()
+
+
+def cancel(update, context):
+    update.message.reply_text('Cancelled')
+    return ConversationHandler.END
+
+
+broadcast_conv = ConversationHandler(
+    entry_points=[CommandHandler('broadcast', broadcast_message)],
+    states={
+        1: [MessageHandler(Filters.all, send_broadcast_message)],
+    },
+    fallbacks=[CommandHandler('cancel', cancel)],
+)
+
+
 def main():
     updater = Updater(token=TOKEN, use_context=True, workers=32)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler('start', start))
     dispatcher.add_handler(CommandHandler('stat', get_stat))
+    dispatcher.add_handler(broadcast_conv)
     dispatcher.add_handler(MessageHandler(
         Filters.text, search_book_handler, run_async=True))
     dispatcher.add_handler(CallbackQueryHandler(send_file, run_async=True))
-
     dispatcher.add_error_handler(error_handler, run_async=True)
 
     updater.start_polling()
