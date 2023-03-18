@@ -197,12 +197,16 @@ def search_book(name):
 def start(update, context):
     # every even day of the month send the user stat of total downloads
     today = datetime.today()
+    keyboard = [
+        [InlineKeyboardButton("Buy me a coffee", url='https://www.buymeacoffee.com/chapimenge')],
+    ]
     if today.day % 2 == 0:
         total_downloads = db.get('total_downloads')['value']
         update.message.reply_text(
-            f'{WELCOME_MESSAGE} \n\nTotal downloads from all till now: {total_downloads} MB')
+            f'{WELCOME_MESSAGE} \n\nTotal downloads from all till now: {total_downloads} MB',
+            reply_markup=InlineKeyboardMarkup(keyboard))
     else:
-        update.message.reply_text(WELCOME_MESSAGE)
+        update.message.reply_text(WELCOME_MESSAGE, reply_markup=InlineKeyboardMarkup(keyboard))
 
     user_info = update.message.from_user.to_dict()
     create_user(user_info)
