@@ -354,10 +354,6 @@ def broadcast_job(context):
         if user['key'] == 'total_downloads':
             continue
         try:
-
-            print(user)
-            if sent > 0:
-                break
             context.bot.copy_message(
                 chat_id=int(user['key']),
                 **context.job.context,
