@@ -21,3 +21,5 @@ Template for the `.env` file:
 ```bash
 TOKEN=your_token
 ```
+
+Please read the main.py code at least the first 100 line of code. it will give you some instructions.
